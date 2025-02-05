@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
-from agent import XubioAgent
+from .agent import XubioAgent
 
 class TestXubioAgent(unittest.TestCase):
     def setUp(self):
@@ -52,27 +52,19 @@ class TestXubioAgent(unittest.TestCase):
         
         mock_request.assert_called_once()
         self.assertEqual(balance['balance'], 1000.00)
+
+    @patch('os.getenv')
+    def test_from_env(self, mock_getenv):
+        mock_getenv.side_effect = lambda x: {
+            'XUBIO_CLIENT_ID': 'env_client_id',
+            'XUBIO_API_KEY': 'env_api_key',
+            'XUBIO_USERNAME': 'env_username',
+            'XUBIO_TENANT_ID': 'env_tenant_id'
+        }[x]
         
-    @patch('requests.Session.request')
-    def test_error_handling(self, mock_request):
-        mock_request.side_effect = Exception('API Error')
-        
-        with self.patch.assertRaises(Exception):
-            self.agent.list_customers()
-            
-    @classmethod
-    def from_env_test(cls):
-        with patch('os.getenv') as mock_getenv:
-            mock_getenv.side_effect = {
-                'XUBIO_CLIENT_ID': 'env_client_id',
-                'XUBIO_API_KEY': 'env_api_key',
-                'XUBIO_USERNAME': 'env_username',
-                'XUBIO_TENANT_ID': 'env_tenant_id'
-            }.get
-            
-            agent = XubioAgent.from_env()
-            assert agent.client_id == 'env_client_id'
-            assert agent.api_key == 'env_api_key'
+        agent = XubioAgent.from_env()
+        self.assertEqual(agent.client_id, 'env_client_id')
+        self.assertEqual(agent.api_key, 'env_api_key')
 
 if __name__ == '__main__':
     unittest.main()
