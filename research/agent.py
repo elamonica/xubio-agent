@@ -33,4 +33,23 @@ class XubioAgent:
             tenant_id=os.getenv('XUBIO_TENANT_ID')
         )
 
-[rest of the code remains the same...]
+    def _make_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        url = f'{self.base_url}/{endpoint}'
+        response = self.session.request(method, url, json=data)
+        response.raise_for_status()
+        return response.json()
+
+    def list_customers(self, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        return self._make_request('GET', 'customers', params)
+
+    def create_invoice(self, customer_id: str, items: List[Dict[str, Any]], date: Optional[str] = None) -> Dict[str, Any]:
+        data = {
+            'customerId': customer_id,
+            'date': date or datetime.now().isoformat(),
+            'items': items
+        }
+        return self._make_request('POST', 'invoices', data)
+
+    def get_account_balance(self, account_id: str, date: Optional[str] = None) -> Dict[str, Any]:
+        params = {'date': date} if date else None
+        return self._make_request('GET', f'accounts/{account_id}/balance', params)
