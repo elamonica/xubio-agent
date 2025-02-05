@@ -7,9 +7,9 @@ def get_xubio_credentials():
     
     required_vars = [
         'XUBIO_API_KEY',
-        'XUBIO_TENANT_ID',
+        'XUBIO_CLIENT_ID',
         'XUBIO_USERNAME',
-        'XUBIO_PASSWORD'
+        'XUBIO_TENANT_ID'
     ]
     
     missing = [var for var in required_vars if not os.getenv(var)]
@@ -19,6 +19,6 @@ def get_xubio_credentials():
     return {
         'api_key': os.getenv('XUBIO_API_KEY'),
         'tenant_id': os.getenv('XUBIO_TENANT_ID'),
-        'username': os.getenv('XUBIO_USERNAME'),
-        'password': os.getenv('XUBIO_PASSWORD')
+        'client_id': os.getenv('XUBIO_CLIENT_ID'),
+        'username': os.getenv('XUBIO_USERNAME')
     }
