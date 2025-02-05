@@ -11,7 +11,7 @@ class XubioAgent:
         self.api_key = api_key
         self.username = username
         self.tenant_id = tenant_id
-        self.base_url = 'https://api.xubio.com/v1'
+        self.base_url = 'https://xubio.com/API/documentation/'
         self.session = requests.Session()
         self.session.headers.update({
             'X-Client-Id': client_id,
@@ -35,12 +35,16 @@ class XubioAgent:
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         url = f'{self.base_url}/{endpoint}'
+        print(f"Making request to: {url}")  # Debug line
         response = self.session.request(method, url, json=data)
+        print(f"Response status: {response.status_code}")  # Debug line
+        print(f"Response headers: {response.headers}")  # Debug line
+        print(f"Response body: {response.text}")  # Debug line
         response.raise_for_status()
         return response.json()
 
     def list_customers(self, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
-        return self._make_request('GET', 'customers', params)
+        return self._make_request('GET', 'clientes', params)
 
     def create_invoice(self, customer_id: str, items: List[Dict[str, Any]], date: Optional[str] = None) -> Dict[str, Any]:
         data = {
@@ -48,8 +52,8 @@ class XubioAgent:
             'date': date or datetime.now().isoformat(),
             'items': items
         }
-        return self._make_request('POST', 'invoices', data)
+        return self._make_request('POST', 'comprobantes', data)
 
     def get_account_balance(self, account_id: str, date: Optional[str] = None) -> Dict[str, Any]:
         params = {'date': date} if date else None
-        return self._make_request('GET', f'accounts/{account_id}/balance', params)
+        return self._make_request('GET', f'cuentas/{account_id}/balance', params)
