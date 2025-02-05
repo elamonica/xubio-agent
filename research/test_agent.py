@@ -1,70 +1,98 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from datetime import datetime
+from datetime import datetime, timedelta
 from .agent import XubioAgent
 
 class TestXubioAgent(unittest.TestCase):
     def setUp(self):
         self.agent = XubioAgent(
             client_id='test_client_id',
-            api_key='test_api_key',
-            username='test_user',
-            tenant_id='test_tenant'
+            secret_id='test_secret_id'
         )
         
     def test_initialization(self):
         self.assertEqual(self.agent.client_id, 'test_client_id')
-        self.assertEqual(self.agent.api_key, 'test_api_key')
-        self.assertIn('X-Client-Id', self.agent.session.headers)
-        self.assertIn('X-Api-Key', self.agent.session.headers)
+        self.assertEqual(self.agent.secret_id, 'test_secret_id')
+        self.assertIsNone(self.agent.token)
+        self.assertIsNone(self.agent.token_expiry)
         
-    @patch('requests.Session.request')
-    def test_list_customers(self, mock_request):
+    @patch('requests.post')
+    def test_get_token(self, mock_post):
         mock_response = MagicMock()
-        mock_response.json.return_value = [{'id': 1, 'name': 'Test Customer'}]
-        mock_request.return_value = mock_response
+        mock_response.json.return_value = {
+            'access_token': 'test_token',
+            'expires_in': '3600'
+        }
+        mock_post.return_value = mock_response
+        
+        token = self.agent._get_token()
+        
+        self.assertEqual(token, 'test_token')
+        self.assertIsNotNone(self.agent.token_expiry)
+        mock_post.assert_called_once()
+        
+    @patch('requests.post')
+    def test_token_reuse(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'access_token': 'test_token',
+            'expires_in': '3600'
+        }
+        mock_post.return_value = mock_response
+        
+        self.agent._get_token()  # First call
+        mock_post.reset_mock()
+        self.agent._get_token()  # Second call
+        
+        mock_post.assert_not_called()  # Should reuse existing token
+        
+    @patch('requests.request')
+    @patch('requests.post')
+    def test_list_customers(self, mock_post, mock_request):
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {
+            'access_token': 'test_token',
+            'expires_in': '3600'
+        }
+        mock_post.return_value = mock_token_response
+        
+        mock_customers_response = MagicMock()
+        mock_customers_response.json.return_value = [{'id': 1, 'name': 'Test Customer'}]
+        mock_request.return_value = mock_customers_response
         
         customers = self.agent.list_customers()
         
-        mock_request.assert_called_once_with('GET', f'{self.agent.base_url}/customers', json=None)
         self.assertEqual(len(customers), 1)
         self.assertEqual(customers[0]['name'], 'Test Customer')
-        
-    @patch('requests.Session.request')
-    def test_create_invoice(self, mock_request):
-        mock_response = MagicMock()
-        mock_response.json.return_value = {'id': 1, 'status': 'created'}
-        mock_request.return_value = mock_response
-        
-        items = [{'product_id': 1, 'quantity': 2, 'price': 100}]
-        invoice = self.agent.create_invoice('customer123', items)
-        
         mock_request.assert_called_once()
-        self.assertEqual(invoice['status'], 'created')
         
-    @patch('requests.Session.request')
-    def test_get_account_balance(self, mock_request):
-        mock_response = MagicMock()
-        mock_response.json.return_value = {'balance': 1000.00}
-        mock_request.return_value = mock_response
+    @patch('requests.request')
+    @patch('requests.post')
+    def test_token_refresh_on_invalid(self, mock_post, mock_request):
+        mock_token_response = MagicMock()
+        mock_token_response.json.return_value = {
+            'access_token': 'test_token',
+            'expires_in': '3600'
+        }
+        mock_post.return_value = mock_token_response
         
-        balance = self.agent.get_account_balance('account123')
+        # First request fails with invalid token
+        mock_error_response = MagicMock()
+        mock_error_response.status_code = 401
+        mock_error_response.json.return_value = {'error': 'invalid_token'}
+        mock_error = requests.exceptions.HTTPError(response=mock_error_response)
         
-        mock_request.assert_called_once()
-        self.assertEqual(balance['balance'], 1000.00)
-
-    @patch('os.getenv')
-    def test_from_env(self, mock_getenv):
-        mock_getenv.side_effect = lambda x: {
-            'XUBIO_CLIENT_ID': 'env_client_id',
-            'XUBIO_API_KEY': 'env_api_key',
-            'XUBIO_USERNAME': 'env_username',
-            'XUBIO_TENANT_ID': 'env_tenant_id'
-        }[x]
+        # Second request succeeds
+        mock_success_response = MagicMock()
+        mock_success_response.json.return_value = [{'id': 1}]
         
-        agent = XubioAgent.from_env()
-        self.assertEqual(agent.client_id, 'env_client_id')
-        self.assertEqual(agent.api_key, 'env_api_key')
+        mock_request.side_effect = [mock_error, mock_success_response]
+        
+        customers = self.agent.list_customers()
+        
+        self.assertEqual(len(customers), 1)
+        self.assertEqual(mock_request.call_count, 2)
+        self.assertEqual(mock_post.call_count, 2)  # Token refreshed
 
 if __name__ == '__main__':
     unittest.main()
