@@ -1,5 +1,5 @@
 import unittest
-from .agent import XubioAgent
+from agent import XubioAgent
 
 class TestXubioIntegration(unittest.TestCase):
     def setUp(self):
@@ -11,6 +11,7 @@ class TestXubioIntegration(unittest.TestCase):
             customers = self.agent.list_customers()
             self.assertIsNotNone(customers)
             print(f"Successfully connected to XUBIO API")
+            print(f"Response: {customers}")
         except Exception as e:
             self.fail(f"Connection failed: {str(e)}")
 
